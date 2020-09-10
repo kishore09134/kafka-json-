@@ -1,0 +1,67 @@
+import org.apache.kafka.common.serialization.{ StringSerializer}
+
+object ProducerPlayground extends App {
+
+  val topicName = "tri"
+
+  val producerProperties = new Properties()
+  producerProperties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092")
+  producerProperties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+    classOf[StringSerializer].getName)
+  producerProperties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+    classOf[StringSerializer].getName)
+  val producer = new KafkaProducer[String,String](producerProperties)
+  val mapper =
+    new ObjectMapper
+  mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+  def toJson(value: Any): String
+  = { mapper.writeValueAsString(value) }
+  val jsonstring =
+    s"""{
+       | "id": "0001",
+       | "name": "Peter"
+       | } """.stripMargin
+ 
+        producer.send(new ProducerRecord[String,String](topicName,jsonstring))
+
+  producer.flush()
+  producer.close()
+}
+package org.kishore.kafka.mcit
+import java.time.Duration
+import java.util.Properties
+
+import org.apache.kafka.clients.consumer.ConsumerConfig._
+import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, KafkaConsumer}
+import org.apache.kafka.common.serialization
+import org.apache.kafka.common.serialization.StringDeserializer
+import org.kishore.kafka.mcit.ProducerPlayground
+
+import scala.collection.JavaConverters._
+object ConsumerPlayground extends App {
+  val topicName = "tri"
+  val consumerProperties = new Properties()
+  consumerProperties.setProperty(BOOTSTRAP_SERVERS_CONFIG, "localhost:9092")
+  consumerProperties.setProperty(GROUP_ID_CONFIG, "guy944g.")
+  consumerProperties.setProperty(AUTO_OFFSET_RESET_CONFIG, "earliest")
+  consumerProperties.setProperty(KEY_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
+  consumerProperties.setProperty(VALUE_DESERIALIZER_CLASS_CONFIG, classOf[StringDeserializer].getName)
+  consumerProperties.setProperty(ENABLE_AUTO_COMMIT_CONFIG, "false")
+  val consumer = new KafkaConsumer[String, String](consumerProperties)
+  consumer.subscribe(List(topicName).asJava)
+  while (true) { val polledRecords: ConsumerRecords[String, String] = consumer.poll(Duration.ofSeconds(1))
+    if (!polledRecords.isEmpty) {
+      val recordIterator = polledRecords.iterator()
+      while (recordIterator.hasNext) {
+        val record = recordIterator.next()
+        val p = record.value().split(",", -1)
+        val trip = Trip(p(0), p(1))
+        println(trip)
+        consumer.commitSync(Duration.ofSeconds(1))
+    }}}
+}
+
+package org.kishore.kafka.mcit
+
+case class Trip(routeId:String,serviceId:String)
+
